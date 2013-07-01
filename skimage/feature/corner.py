@@ -317,6 +317,8 @@ def corner_foerstner(image, sigma=1):
     return w, q
 
 
+from numba import jit, autojit
+@autojit
 def corner_subpix(image, corners, window_size=11, alpha=0.99):
     """Determine subpixel position of corners.
 
@@ -359,11 +361,15 @@ def corner_subpix(image, corners, window_size=11, alpha=0.99):
     t_crit_edge = stats.f.isf(alpha, redundancy, redundancy)
 
     # coordinates of pixels within window
-    y, x = np.mgrid[- wext:wext + 1, - wext:wext + 1]
+    a = np.mgrid[-wext:wext + 1, -wext:wext + 1]
+    y = a[0]
+    x = a[1]
 
     corners_subpix = np.zeros_like(corners, dtype=np.double)
 
-    for i, (y0, x0) in enumerate(corners):
+    i = 0
+    for corner in corners:
+        y0, x0 = corner[0], corner[1]
 
         # crop window around corner + border for sobel operator
         miny = y0 - wext - 1
@@ -372,7 +378,8 @@ def corner_subpix(image, corners, window_size=11, alpha=0.99):
         maxx = x0 + wext + 2
         window = image[miny:maxy, minx:maxx]
 
-        winx, winy = _compute_derivatives(window)
+        winx__winy = _compute_derivatives(window)
+        winx, winy = winx__winy[0], winx__winy[1]
 
         # compute gradient suares and remove border
         winx_winx = (winx * winx)[1:-1, 1:-1]
@@ -395,11 +402,13 @@ def corner_subpix(image, corners, window_size=11, alpha=0.99):
 
         # normal equations for subpixel position
         N_dot[0, 0] = Axx
-        N_dot[0, 1] = N_dot[1, 0] = - Axy
+        N_dot[0, 1] = - Axy
+        N_dot[1, 0] = - Axy
         N_dot[1, 1] = Ayy
 
         N_edge[0, 0] = Ayy
-        N_edge[0, 1] = N_edge[1, 0] = Axy
+        N_edge[0, 1] = Axy
+        N_edge[1, 0] = Axy
         N_edge[1, 1] = Axx
 
         b_dot[:] = bxx_y - bxy_x, byy_x - bxy_y
@@ -439,6 +448,8 @@ def corner_subpix(image, corners, window_size=11, alpha=0.99):
             corners_subpix[i, :] = np.nan, np.nan
         elif corner_class == 1:
             corners_subpix[i, :] = y0 + est_edge[0], x0 + est_edge[1]
+
+        i += 1
 
     return corners_subpix
 
