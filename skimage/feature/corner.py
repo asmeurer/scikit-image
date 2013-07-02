@@ -318,7 +318,8 @@ def corner_foerstner(image, sigma=1):
 
 
 from numba import jit, autojit
-@autojit
+#@autojit
+@jit("float64[:,:](float64[:,:], float64[:,:], int, float)")
 def corner_subpix(image, corners, window_size=11, alpha=0.99):
     """Determine subpixel position of corners.
 
